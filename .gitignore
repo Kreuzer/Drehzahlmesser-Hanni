@@ -15,3 +15,12 @@
 *.exe
 *.out
 *.app
+
+# Release Dateien
+*.elf
+*.lss
+*.map
+*.d
+*.mk
+*.epp
+*.hex
