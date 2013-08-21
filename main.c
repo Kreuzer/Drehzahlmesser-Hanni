@@ -5,6 +5,7 @@
  *
  * Funktionen:
  * 	- Anzeige der Drehzahl
+ * 	- Akkuspannung ?
  * 	-
  */
 
@@ -13,6 +14,8 @@
 #include <util/delay.h>
 #include <avr/interrupt.h>
 #include "uart.h"
+#include "lcd.h"
+#include "i2cmaster.h"
 
 
 #define UART_BAUD_RATE      9600
@@ -29,7 +32,9 @@ volatile unsigned int  StartTime = 0;   // ICR-Wert bei 1.High-Flanke speichern
 volatile unsigned int  EndTime = 0;     // ICR-Wert bei 2.High-Flanke speichern
 volatile unsigned char UpdateDisplay;   // Job Flag
 
+volatile unsigned char flag_1s = 0;		// Wird jede sec durch ISR auf 1 gesetzt
 
+volatile unsigned int counter_ms = 0;
 
 ISR( TIMER1_CAPT_vect )
 {
@@ -62,10 +67,27 @@ ISR( TIMER1_CAPT_vect )
   }
 }
 
-
+/**
+ * Timerüberläufe werden gespeichert
+ */
 ISR( TIMER1_OVF_vect )
 {
   NrOverflows++;
+}
+
+/**
+ * Löst jede ms aus.
+ */
+ISR( TIMER0_COMPA_vect ){
+
+
+	if (counter_ms < 1000){
+		counter_ms++;
+	}
+	else{
+		flag_1s = 1;
+		counter_ms = 0;
+	}
 }
 
 int main()
@@ -73,12 +95,25 @@ int main()
   char lcdCounterString[8];
   double Erg = 0.0;
 
+  i2c_init();
   uart_init( UART_BAUD_SELECT(UART_BAUD_RATE,F_CPU) );
+  lcd_init(LCD_DISP_ON);
 
-  TCCR1B = (1<<ICES1)  | (1<<CS10); // Input Capture Edge, kein PreScale
+  // init Timer 0 -> Zeitbasis (unabhängig von der Messung
+  TCCR0A = (1<<WGM01);				// CTC-Modus
+  TCCR0B = (1<<CS01) | (1<<CS00); 	// Prescaller = 64
+  OCR0A = 125; 						// -> Interrupt alle 1ms
+  TIMSK0 = (1<<OCIE0A); 			// Interrupt aktivieren
+
+
+  // init Timer 1 -> Messung des Signals
+  TCCR1B = (1<<ICES1) | (1<<ICNC1) | (1<<CS10); // Input Capture Edge, Input Cataputure Noise Canceler, kein PreScale
   TIMSK1 = (1<<ICIE1) | (1<<TOIE1); // Interrupts akivieren, Capture + Overflow
 
   sei();
+
+  lcd_clrscr();
+  lcd_puts("Drehzahlmesser");
 
 
   while(1)
@@ -115,6 +150,16 @@ int main()
       //
       uart_puts(lcdCounterString);
       uart_putc('\n');
+
+      //
+      // jede Sekunde auf dem Display ausgeben
+      if(flag_1s){
+    	  flag_1s = 0;
+    	  lcd_clrscr();
+    	  lcd_puts("F=");
+    	  lcd_puts(lcdCounterString);
+    	  lcd_puts("Hz");
+      }
 
       //
       // Das wars: Display ist wieder up to date

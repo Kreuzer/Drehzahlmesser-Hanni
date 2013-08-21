@@ -4,14 +4,20 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
+../i2cmaster.c \
+../lcd.c \
 ../main.c \
 ../uart.c 
 
 OBJS += \
+./i2cmaster.o \
+./lcd.o \
 ./main.o \
 ./uart.o 
 
 C_DEPS += \
+./i2cmaster.d \
+./lcd.d \
 ./main.d \
 ./uart.d 
 
