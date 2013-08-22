@@ -40,12 +40,12 @@ volatile unsigned int counter_ms = 0;
 ISR( TIMER1_CAPT_vect )
 {
   static unsigned char ErsteFlanke = TRUE;
-  signal_ok = 1;
+  signal_ok = 1;		// Signal vorhanden
 
-  if( UpdateDisplay )          // Das Display wurde mit den Ergebnissen der vorhergehenden
-    return;                    // Messung noch nicht upgedated. Die naechste Messung
-                               // verzögern, bis die Start und EndTime Variablen wieder
-                               // gefahrlos beschrieben werden koennen
+  if( UpdateDisplay )  	// Das Display wurde mit den Ergebnissen der vorhergehenden
+    return;             // Messung noch nicht upgedated. Die naechste Messung
+                        // verzögern, bis die Start und EndTime Variablen wieder
+                        // gefahrlos beschrieben werden koennen
 
   //
   // Bei der ersten Flanke beginnt die Messung, es wird der momentane
