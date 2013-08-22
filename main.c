@@ -16,6 +16,7 @@
 #include "uart.h"
 #include "lcd.h"
 #include "i2cmaster.h"
+#include "FloatingAverage.h"
 
 
 #define UART_BAUD_RATE      9600
@@ -33,12 +34,13 @@ volatile unsigned int  EndTime = 0;     // ICR-Wert bei 2.High-Flanke speichern
 volatile unsigned char UpdateDisplay;   // Job Flag
 
 volatile unsigned char flag_1s = 0;		// Wird jede sec durch ISR auf 1 gesetzt
-
+volatile unsigned char signal_ok = 0; 	// Frequenz vorhanden, wenn 1 oder 2
 volatile unsigned int counter_ms = 0;
 
 ISR( TIMER1_CAPT_vect )
 {
   static unsigned char ErsteFlanke = TRUE;
+  signal_ok = 1;
 
   if( UpdateDisplay )          // Das Display wurde mit den Ergebnissen der vorhergehenden
     return;                    // Messung noch nicht upgedated. Die naechste Messung
@@ -86,6 +88,10 @@ ISR( TIMER0_COMPA_vect ){
 	}
 	else{
 		flag_1s = 1;
+		if(signal_ok == 1)
+			signal_ok = 2;
+		else
+			signal_ok = 0;
 		counter_ms = 0;
 	}
 }
@@ -115,6 +121,13 @@ int main()
   lcd_clrscr();
   lcd_puts("Drehzahlmesser");
 
+  // Gleitender Mittelwert
+  // Datenstruktur anlegen:
+  tFloatAvgFilter filterFrequency;
+
+  // initialisieren und mit 0 fuellen
+  InitFloatAvg(&filterFrequency, 0);
+
 
   while(1)
   {
@@ -140,10 +153,14 @@ int main()
       // ... mit der bekannten Taktfrequenz ergibt sich dann die Signalfrequenz
       Erg = F_CPU / Erg;       // f = 1 / t
 
+      // der Mittelwerts berrechnung zuführen
+      AddToFloatAvg(&filterFrequency, Erg);
+
       //
       // Das Ergebnis fuer die Anzeige aufbereiten ...
       //
-      dtostrf( Erg, 5, 3, lcdCounterString );  // 3 Nachkommastellen
+      dtostrf( GetOutputValue(&filterFrequency), 5, 1, lcdCounterString );  // 3 Nachkommastellen
+//      dtostrf( Erg, 5, 3, lcdCounterString );  // 3 Nachkommastellen
 
       //
       // ... und ausgeben
@@ -152,20 +169,28 @@ int main()
       uart_putc('\n');
 
       //
-      // jede Sekunde auf dem Display ausgeben
-      if(flag_1s){
-    	  flag_1s = 0;
-    	  lcd_clrscr();
-    	  lcd_puts("F=");
-    	  lcd_puts(lcdCounterString);
-    	  lcd_puts("Hz");
-      }
-
-      //
       // Das wars: Display ist wieder up to date
       // die naechste Messung kann starten
       //
       UpdateDisplay = FALSE;
     }
+
+    //
+	// jede Sekunde auf dem Display ausgeben
+	if(flag_1s){
+	  flag_1s = 0;
+	  lcd_clrscr();
+
+	  // Signal vorhanden, dann Ausgeben
+	  if(signal_ok){
+		lcd_puts("F=");
+		lcd_puts(lcdCounterString);
+		lcd_puts("Hz");
+	  }
+	  else{
+		  lcd_puts("kein Signal");
+	  }
+
+	}
   }
 }
